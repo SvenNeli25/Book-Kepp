@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Finish - Book-Keep{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <h1 class="hero__title">Finish</h1>
+    <p class="hero__subtitle">{{ entry['naslov'] }} • {{ entry['avtor'] }}</p>
+  </section>
+
+  <form class="form" method="POST" data-entry-form>
+    <input type="hidden" name="tip" value="{{ entry['tip'] }}" data-tip>
+    <section class="panel">
+      <h2 class="panel__title">Finalne ocene (1-10)</h2>
+      <div class="panel__grid">
+        {% for k, label in [
+          ('zgodba','Zgodba'),
+          ('liki','Liki'),
+          ('tempo','Tempo'),
+          ('slog','Slog pisanja'),
+          ('custveni_vpliv','Custveni vpliv'),
+          ('naracija','Naracija'),
+          ('jasnost_govora','Jasnost govora'),
+          ('zvocna_izkusnja','Zvoczna izkusnja')
+        ] %}
+          <label class="field" data-kriterij="{{ k }}">
+            <span class="field__label">{{ label }}</span>
+            <input class="input" name="rating_{{ k }}" type="number" min="1" max="10" step="0.5" inputmode="decimal" value="{{ entry['ratings'].get(k,'') }}">
+          </label>
+        {% endfor %}
+      </div>
+      <p class="hint">Po shranjevanju se izracuna score in tier (S-F).</p>
+    </section>
+
+    <div class="form__actions">
+      <button class="btn" type="submit">Zakljuci in oceni</button>
+      <a class="btn btn--ghost" href="{{ url_for('entry_details', entry_id=entry['id']) }}">Nazaj</a>
+    </div>
+  </form>
+{% endblock %}

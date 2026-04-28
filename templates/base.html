@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Book-Keep{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=static_v_css) }}">
+  <script defer src="{{ url_for('static', filename='app.js', v=static_v_js) }}"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <a class="brand" href="{{ url_for('index') }}">Book-Keep</a>
+      <nav class="nav">
+        <a class="nav__link" href="{{ url_for('add') }}">Dodaj</a>
+        <a class="nav__link" href="{{ url_for('tiers') }}">Tier Board</a>
+        <a class="nav__link" href="{{ url_for('stats') }}">Statistika</a>
+        <a class="nav__link" href="{{ url_for('weights') }}">Utezi</a>
+        <button class="nav__link nav__btn" type="button" data-density-toggle title="Toggle density">Gostota</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="toasts" role="status" aria-live="polite">
+          {% for category, message in messages %}
+            <div class="toast toast--{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

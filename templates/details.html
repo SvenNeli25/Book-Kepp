@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ entry['naslov'] }} - Book-Keep{% endblock %}
+
+{% block content %}
+  <div class="details">
+    <div class="details__head">
+      <div>
+        <div class="pill">{{ entry['tip'] }} • {{ entry['status'] }}</div>
+        <h1 class="details__title">{{ entry["naslov"] }}</h1>
+        <p class="details__author">{{ entry["avtor"] }}</p>
+        <p class="details__genre">{{ entry["zvrst"] }}</p>
+      </div>
+
+      <div class="details__score">
+        <div class="score score--big">
+          {% if entry['status'] == 'finished' %}
+            <div class="score__value">{{ '%.2f'|format(entry['skupna_ocena']) }}</div>
+            <div class="score__tier">Tier {{ entry['tier'] }}</div>
+          {% elif entry['status'] == 'dnf' %}
+            <div class="score__value">DNF</div>
+            <div class="score__tier">Tier G (on god)</div>
+          {% else %}
+            <div class="score__value">--</div>
+            <div class="score__tier">In progress</div>
+          {% endif %}
+        </div>
+        <div class="details__actions">
+          <a class="btn btn--small" href="{{ url_for('edit', entry_id=entry['id']) }}">Uredi</a>
+          {% if entry['status'] != 'finished' %}
+            <a class="btn btn--small" href="{{ url_for('finish', entry_id=entry['id']) }}">Finish</a>
+          {% endif %}
+          {% if entry['status'] != 'dnf' %}
+            <form method="POST" action="{{ url_for('set_dnf', entry_id=entry['id']) }}" class="inline">
+              <button class="btn btn--small btn--danger" type="submit">DNF (on god)</button>
+            </form>
+          {% endif %}
+          {% if entry['status'] != 'in_progress' %}
+            <form method="POST" action="{{ url_for('set_in_progress', entry_id=entry['id']) }}" class="inline">
+              <button class="btn btn--small btn--ghost" type="submit">Nazaj: In progress</button>
+            </form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('delete', entry_id=entry['id']) }}" class="inline">
+            <button class="btn btn--small btn--danger" type="submit">Izbriši</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="details__grid">
+      <section class="panel">
+        <h2 class="panel__title">Naslovnica</h2>
+        {% if entry['slika_naslovnice'] %}
+          <img class="cover" src="{{ entry['slika_naslovnice'] }}" alt="Naslovnica" onerror="this.classList.add('cover--error'); this.alt='Naslovnica (ni na voljo)';">
+        {% else %}
+          <div class="cover cover--placeholder">Ni slike</div>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Dolžina</h2>
+        <div class="kv">
+          <div class="kv__row"><span class="kv__k">Strani</span><span class="kv__v">{{ entry['lengths']['st_strani'] if entry['lengths']['st_strani'] is not none else '-' }}</span></div>
+        </div>
+      </section>
+
+      <section class="panel panel--wide">
+        <h2 class="panel__title">Checkpoint opinions</h2>
+        <div class="checkpointlist">
+          {% for cp in checkpoints %}
+            <form method="POST" action="{{ url_for('save_checkpoint', entry_id=entry['id'], checkpoint=cp.key) }}" class="checkpoint">
+              <div class="checkpoint__head">
+                <div class="checkpoint__k">{{ cp.key }}</div>
+                <button class="btn btn--small btn--ghost" type="submit">Shrani</button>
+              </div>
+              <textarea class="textarea" name="opinion" rows="2" placeholder="Tvoje mnenje...">{{ (entry['checkpoints'].get(cp.key) or {}).get('opinion','') }}</textarea>
+            </form>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% if entry['status'] == 'finished' %}
+        <section class="panel panel--wide">
+          <h2 class="panel__title">Finalne ocene</h2>
+          {% if entry['ratings'] %}
+            <div class="ratings">
+              {% for k, v in entry['ratings'].items() %}
+                <div class="ratings__row">
+                  <span class="ratings__k">{{ k }}</span>
+                  <span class="ratings__v">{{ v }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="muted">Brez ocen.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      <section class="panel panel--wide">
+        <h2 class="panel__title">Mnenje</h2>
+        <p class="textblock">{{ entry['kratko_mnenje'] or '—' }}</p>
+      </section>
+
+      <section class="panel panel--wide">
+        <h2 class="panel__title">Citat</h2>
+        {% if entry['fav_quote'] %}
+          <blockquote class="quote">{{ entry['fav_quote'] }}</blockquote>
+        {% else %}
+          <p class="muted">Brez citata.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel panel--wide">
+        <h2 class="panel__title">Opombe</h2>
+        <p class="textblock">{{ entry['opombe'] or '—' }}</p>
+      </section>
+    </div>
+
+    <div class="footer-actions">
+      <a class="btn btn--ghost" href="{{ url_for('index') }}">Nazaj</a>
+    </div>
+  </div>
+{% endblock %}

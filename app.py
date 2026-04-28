@@ -1,0 +1,474 @@
+import sys
+from pathlib import Path
+import secrets
+import time
+
+# This repo sometimes ends up with an unwritable `__pycache__/` on Windows.
+# Avoid writing `.pyc` files so running the app doesn't fail with WinError 5.
+sys.dont_write_bytecode = True
+
+import csv
+import io
+import json
+
+from flask import Flask, render_template, request, redirect, url_for, abort, Response, flash
+from werkzeug.utils import secure_filename
+from database import (
+    get_all_entries,
+    get_entry,
+    add_entry,
+    update_entry,
+    delete_entry,
+    init_db,
+    get_rating_settings,
+    update_rating_setting,
+    CHECKPOINTS,
+    upsert_checkpoint,
+    mark_dnf,
+    mark_in_progress,
+    mark_finished,
+)
+
+app = Flask(__name__)
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
+app.secret_key = "dev"
+
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "static" / "covers"
+ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+@app.context_processor
+def _inject_static_version():
+    # Cache-bust static files so CSS/JS changes show up immediately.
+    def mtime(rel_path: str) -> int:
+        try:
+            return int((BASE_DIR / rel_path).stat().st_mtime)
+        except OSError:
+            return int(time.time())
+
+    return {
+        "static_v_css": mtime("static/style.css"),
+        "static_v_js": mtime("static/app.js"),
+    }
+
+
+@app.after_request
+def _no_store(resp):
+    # Make dev iterations predictable: don't let the browser cache HTML/CSS/JS.
+    resp.headers["Cache-Control"] = "no-store, max-age=0"
+    return resp
+
+
+def _is_allowed_image(filename: str) -> bool:
+    ext = Path(filename).suffix.lower()
+    return ext in ALLOWED_IMAGE_EXTS
+
+
+def _save_cover_upload(file_storage) -> str | None:
+    """
+    Save an uploaded cover image under static/covers and return its public URL
+    path (e.g. /static/covers/abc.jpg). Returns None when no file was uploaded.
+    """
+    if file_storage is None or not getattr(file_storage, "filename", ""):
+        return None
+
+    filename = secure_filename(file_storage.filename)
+    if not filename:
+        return None
+
+    if not _is_allowed_image(filename):
+        abort(400, description="Unsupported cover image type.")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(filename).suffix.lower()
+    token = secrets.token_hex(8)
+    out_name = f"{token}{ext}"
+    out_path = UPLOAD_DIR / out_name
+    file_storage.save(out_path)
+
+    return url_for("static", filename=f"covers/{out_name}")
+
+
+def _maybe_delete_local_cover(url_path: str | None) -> None:
+    # Only delete files we own under /static/covers/.
+    if not url_path:
+        return
+    if not url_path.startswith("/static/covers/"):
+        return
+
+    rel = url_path.removeprefix("/static/")
+    target = (BASE_DIR / "static" / rel).resolve()
+    if UPLOAD_DIR.resolve() not in target.parents:
+        return
+    try:
+        target.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+@app.route("/")
+def index():
+    entries = get_all_entries()
+
+    q = (request.args.get("q") or "").strip().lower()
+    tip = (request.args.get("tip") or "").strip()
+    zvrst = (request.args.get("zvrst") or "").strip()
+    tier = (request.args.get("tier") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    sort = (request.args.get("sort") or "newest").strip()
+
+    def match(e):
+        if q and (q not in (e.get("naslov") or "").lower()) and (q not in (e.get("avtor") or "").lower()):
+            return False
+        if tip and e.get("tip") != tip:
+            return False
+        if zvrst and e.get("zvrst") != zvrst:
+            return False
+        if tier and e.get("tier") != tier:
+            return False
+        if status and e.get("status") != status:
+            return False
+        return True
+
+    entries = [e for e in entries if match(e)]
+
+    if sort == "score_desc":
+        entries.sort(key=lambda e: float(e.get("skupna_ocena") or 0), reverse=True)
+    elif sort == "title_asc":
+        entries.sort(key=lambda e: (e.get("naslov") or "").lower())
+    else:
+        # newest by id
+        entries.sort(key=lambda e: int(e.get("id") or 0), reverse=True)
+
+    return render_template("index.html", entries=entries, q=q, tip=tip, zvrst=zvrst, tier=tier, status=status, sort=sort)
+
+
+@app.route("/add", methods=["GET", "POST"])
+def add():
+    if request.method == "POST":
+        naslov = (request.form.get("naslov") or "").strip()
+        avtor = (request.form.get("avtor") or "").strip()
+        tip = (request.form.get("tip") or "book").strip()
+        zvrst = (request.form.get("zvrst") or "Drugo").strip()
+
+        # Prefer uploaded file; fallback to URL typed in the text field.
+        uploaded_cover = _save_cover_upload(request.files.get("cover_file"))
+        slika_naslovnice = uploaded_cover or (request.form.get("slika_naslovnice") or "").strip() or None
+        kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or "Brez mnenja"
+        fav_quote = (request.form.get("fav_quote") or "").strip() or None
+        opombe = (request.form.get("opombe") or "").strip() or None
+
+        def to_int(name):
+            v = (request.form.get(name) or "").strip()
+            return int(v) if v != "" else None
+
+        st_strani = to_int("st_strani")
+
+        add_entry(
+            naslov=naslov,
+            avtor=avtor,
+            tip=tip,
+            zvrst=zvrst,
+            slika_naslovnice=slika_naslovnice,
+            kratko_mnenje=kratko_mnenje,
+            fav_quote=fav_quote,
+            opombe=opombe,
+            status="in_progress",
+            st_strani=st_strani,
+            ratings=None,
+        )
+
+        flash("Vnos je dodan.", "success")
+        return redirect(url_for("index"))
+
+    return render_template("add.html")
+
+
+@app.post("/delete/<int:entry_id>")
+def delete(entry_id: int):
+    delete_entry(entry_id)
+    flash("Vnos je izbrisan.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/entry/<int:entry_id>")
+def entry_details(entry_id: int):
+    entry = get_entry(entry_id)
+    if entry is None:
+        abort(404)
+    checkpoints = [{"key": k, "label": k} for k in CHECKPOINTS]
+    return render_template("details.html", entry=entry, checkpoints=checkpoints)
+
+
+@app.route("/edit/<int:entry_id>", methods=["GET", "POST"])
+def edit(entry_id: int):
+    entry = get_entry(entry_id)
+    if entry is None:
+        abort(404)
+
+    if request.method == "POST":
+        naslov = (request.form.get("naslov") or "").strip()
+        avtor = (request.form.get("avtor") or "").strip()
+        tip = (request.form.get("tip") or "book").strip()
+        zvrst = (request.form.get("zvrst") or "Drugo").strip()
+
+        uploaded_cover = _save_cover_upload(request.files.get("cover_file"))
+        slika_naslovnice = uploaded_cover or (request.form.get("slika_naslovnice") or "").strip() or None
+        kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or "Brez mnenja"
+        fav_quote = (request.form.get("fav_quote") or "").strip() or None
+        opombe = (request.form.get("opombe") or "").strip() or None
+
+        def to_int(name):
+            v = (request.form.get(name) or "").strip()
+            return int(v) if v != "" else None
+
+        st_strani = to_int("st_strani")
+
+        update_entry(
+            entry_id=entry_id,
+            naslov=naslov,
+            avtor=avtor,
+            tip=tip,
+            zvrst=zvrst,
+            slika_naslovnice=slika_naslovnice,
+            kratko_mnenje=kratko_mnenje,
+            fav_quote=fav_quote,
+            opombe=opombe,
+            st_strani=st_strani,
+            ratings=None,
+        )
+
+        if uploaded_cover:
+            # If a new local file was uploaded, remove the old local cover file (if any).
+            _maybe_delete_local_cover(entry.get("slika_naslovnice"))
+
+        flash("Spremembe so shranjene.", "success")
+        return redirect(url_for("entry_details", entry_id=entry_id))
+
+    return render_template("edit.html", entry=entry)
+
+
+@app.post("/entry/<int:entry_id>/checkpoint/<checkpoint>")
+def save_checkpoint(entry_id: int, checkpoint: str):
+    entry = get_entry(entry_id)
+    if entry is None:
+        abort(404)
+
+    opinion = (request.form.get("opinion") or "").strip() or None
+    try:
+        upsert_checkpoint(entry_id, checkpoint, opinion)
+    except ValueError:
+        abort(400)
+
+    flash("Checkpoint shranjen.", "success")
+    return redirect(url_for("entry_details", entry_id=entry_id))
+
+
+@app.post("/entry/<int:entry_id>/dnf")
+def set_dnf(entry_id: int):
+    entry = get_entry(entry_id)
+    if entry is None:
+        abort(404)
+    mark_dnf(entry_id)
+    flash("Oznaceno kot DNF (on god).", "success")
+    return redirect(url_for("entry_details", entry_id=entry_id))
+
+
+@app.post("/entry/<int:entry_id>/in_progress")
+def set_in_progress(entry_id: int):
+    entry = get_entry(entry_id)
+    if entry is None:
+        abort(404)
+    mark_in_progress(entry_id)
+    flash("Oznaceno kot In progress.", "success")
+    return redirect(url_for("entry_details", entry_id=entry_id))
+
+
+@app.route("/finish/<int:entry_id>", methods=["GET", "POST"])
+def finish(entry_id: int):
+    entry = get_entry(entry_id)
+    if entry is None:
+        abort(404)
+
+    if request.method == "POST":
+        ratings = {}
+        for key in request.form:
+            if not key.startswith("rating_"):
+                continue
+            kriterij = key.removeprefix("rating_")
+            raw = (request.form.get(key) or "").strip()
+            if raw == "":
+                continue
+            ratings[kriterij] = float(raw)
+
+        if not ratings:
+            flash("Dodaj vsaj eno oceno, preden zakljucis.", "error")
+            return redirect(url_for("finish", entry_id=entry_id))
+
+        mark_finished(entry_id, entry.get("tip") or "book", ratings)
+        flash("Vnos zakljucen in ocenjen.", "success")
+        return redirect(url_for("entry_details", entry_id=entry_id))
+
+    return render_template("finish.html", entry=entry)
+
+
+@app.route("/stats")
+def stats():
+    entries = get_all_entries()
+
+    # Stats are for finished items only (exclude in-progress and DNF).
+    finished = [e for e in entries if e.get("status") == "finished"]
+
+    total = len(finished)
+    total_books = sum(1 for e in finished if e.get("tip") == "book")
+    total_audiobooks = sum(1 for e in finished if e.get("tip") == "audiobook")
+    avg_score = round(sum(float(e.get("skupna_ocena") or 0) for e in finished) / total, 2) if total else 0
+
+    # Genre counts
+    genre_counts = {}
+    for e in finished:
+        g = e.get("zvrst") or "Drugo"
+        genre_counts[g] = genre_counts.get(g, 0) + 1
+    favorite_genre = max(genre_counts.items(), key=lambda kv: kv[1])[0] if genre_counts else None
+
+    # Page totals (requires entry_lengths)
+    # We'll compute via per-entry load to avoid duplicating SQL right now.
+    total_pages = 0
+    for e in finished:
+        full = get_entry(int(e["id"]))
+        if not full:
+            continue
+        st = full["lengths"].get("st_strani")
+        if isinstance(st, int):
+            total_pages += st
+
+    return render_template(
+        "stats.html",
+        total=total,
+        total_books=total_books,
+        total_audiobooks=total_audiobooks,
+        avg_score=avg_score,
+        favorite_genre=favorite_genre,
+        total_pages=total_pages,
+    )
+
+
+@app.route("/tiers")
+def tiers():
+    entries = get_all_entries()
+    grouped = {k: [] for k in ["IN_PROGRESS", "S", "A", "B", "C", "D", "F", "G"]}
+
+    for e in entries:
+        st = e.get("status")
+        if st == "in_progress":
+            grouped["IN_PROGRESS"].append(e)
+            continue
+        t = e.get("tier")
+        if t in grouped:
+            grouped[t].append(e)
+
+    # Stable ordering: best tier first, then newest within tier.
+    for t in grouped:
+        grouped[t].sort(key=lambda e: int(e.get("id") or 0), reverse=True)
+
+    return render_template("tiers.html", tiers=grouped)
+
+
+@app.route("/weights", methods=["GET", "POST"])
+def weights():
+    if request.method == "POST":
+        # Update settings in bulk from the posted form.
+        settings = get_rating_settings()
+        for s in settings:
+            sid = int(s["id"])
+            raw_w = (request.form.get(f"w_{sid}") or "").strip()
+            raw_a = request.form.get(f"a_{sid}")  # checkbox: present if checked
+            if raw_w == "":
+                continue
+            try:
+                w = float(raw_w)
+            except ValueError:
+                continue
+            active = raw_a == "on"
+            update_rating_setting(sid, w, active)
+        flash("Utezi so shranjeni.", "success")
+        return redirect(url_for("weights"))
+
+    settings = get_rating_settings()
+    return render_template("weights.html", settings=settings)
+
+
+@app.get("/export.json")
+def export_json():
+    entries = get_all_entries()
+    full = []
+    for e in entries:
+        fe = get_entry(int(e["id"]))
+        if fe:
+            full.append(fe)
+    payload = {"entries": full}
+    return Response(json.dumps(payload, ensure_ascii=False, indent=2), mimetype="application/json")
+
+
+@app.get("/export.csv")
+def export_csv():
+    entries = get_all_entries()
+    out = io.StringIO()
+    w = csv.writer(out)
+
+    # Flatten ratings into a JSON-ish string column for now.
+    w.writerow(
+        [
+            "id",
+            "naslov",
+            "avtor",
+            "tip",
+            "zvrst",
+            "slika_naslovnice",
+            "kratko_mnenje",
+            "fav_quote",
+            "opombe",
+            "st_strani",
+            "skupna_ocena",
+            "tier",
+            "ratings_json",
+        ]
+    )
+
+    for e in entries:
+        fe = get_entry(int(e["id"]))
+        if not fe:
+            continue
+        w.writerow(
+            [
+                fe.get("id"),
+                fe.get("naslov"),
+                fe.get("avtor"),
+                fe.get("tip"),
+                fe.get("zvrst"),
+                fe.get("slika_naslovnice"),
+                fe.get("kratko_mnenje"),
+                fe.get("fav_quote"),
+                fe.get("opombe"),
+                (fe.get("lengths") or {}).get("st_strani"),
+                fe.get("skupna_ocena"),
+                fe.get("tier"),
+                json.dumps(fe.get("ratings") or {}, ensure_ascii=False),
+            ]
+        )
+
+    csv_bytes = out.getvalue().encode("utf-8")
+    return Response(
+        csv_bytes,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=book-keep-export.csv"},
+    )
+
+
+if __name__ == "__main__":
+    init_db()
+    app.run(debug=True)

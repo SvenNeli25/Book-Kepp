@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Utezi - Book-Keep{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <h1 class="hero__title">Utezi (rating_settings)</h1>
+    <p class="hero__subtitle">Spremembe vplivajo na izracun skupne ocene. Obstojece vnose posodobi z urejanjem vnosa.</p>
+  </section>
+
+  <form class="form" method="POST">
+    <div class="weights">
+      {% for tip in ['book','audiobook'] %}
+        <section class="panel">
+          <h2 class="panel__title">{{ tip }}</h2>
+          <div class="weights__table">
+            <div class="weights__head">Kriterij</div>
+            <div class="weights__head">Utez</div>
+            <div class="weights__head">Aktiven</div>
+
+            {% for s in settings if s['tip'] == tip %}
+              <div class="weights__cell weights__k">{{ s['kriterij'] }}</div>
+              <div class="weights__cell">
+                <input class="input" type="number" min="0" step="0.1" name="w_{{ s['id'] }}" value="{{ s['utez'] }}">
+              </div>
+              <div class="weights__cell">
+                <label class="check">
+                  <input type="checkbox" name="a_{{ s['id'] }}" {% if s['je_aktiven'] %}checked{% endif %}>
+                  <span>on</span>
+                </label>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+
+    <div class="form__actions">
+      <button class="btn" type="submit">Shrani</button>
+      <a class="btn btn--ghost" href="{{ url_for('index') }}">Nazaj</a>
+      <a class="btn btn--ghost" href="{{ url_for('export_json') }}">Export JSON</a>
+      <a class="btn btn--ghost" href="{{ url_for('export_csv') }}">Export CSV</a>
+    </div>
+  </form>
+{% endblock %}
+

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Book-Keep{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <h1 class="hero__title">Moje knjige in avdioknjige</h1>
+    <p class="hero__subtitle">Vizualni pogled na tvojo knjiznico.</p>
+  </section>
+
+  <form class="filters" method="GET" action="{{ url_for('index') }}">
+    <div class="filters__row">
+      <input class="input" name="q" value="{{ q or '' }}" placeholder="Išči (naslov ali avtor)">
+
+      <select class="select" name="tip">
+        <option value="" {% if not tip %}selected{% endif %}>Vsi tipi</option>
+        <option value="book" {% if tip == 'book' %}selected{% endif %}>Knjiga</option>
+        <option value="audiobook" {% if tip == 'audiobook' %}selected{% endif %}>Avdioknjiga</option>
+      </select>
+
+      <select class="select" name="zvrst">
+        <option value="" {% if not zvrst %}selected{% endif %}>Vse zvrsti</option>
+        {% for g in ['Fantazija','Znanstvena fantastika','Romanca','Kriminalka','Triler','Grozljivka','Avantura','Zgodovinski roman','Mladinski roman','Realisticni roman','Self-Help','Drugo'] %}
+          <option value="{{ g }}" {% if zvrst == g %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+
+      <select class="select" name="tier">
+        <option value="" {% if not tier %}selected{% endif %}>Vsi tierji</option>
+        {% for t in ['S','A','B','C','D','F','G'] %}
+          <option value="{{ t }}" {% if tier == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+
+      <select class="select" name="status">
+        <option value="" {% if not status %}selected{% endif %}>Vsi statusi</option>
+        {% for s in ['in_progress','finished','dnf'] %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <select class="select" name="sort">
+        <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Najnovejše</option>
+        <option value="score_desc" {% if sort == 'score_desc' %}selected{% endif %}>Ocena (padajoče)</option>
+        <option value="title_asc" {% if sort == 'title_asc' %}selected{% endif %}>Naslov (A-Z)</option>
+      </select>
+
+      <button class="btn" type="submit">Uporabi</button>
+      <a class="btn btn--ghost" href="{{ url_for('index') }}">Počisti</a>
+    </div>
+  </form>
+
+  {% if entries %}
+    <section class="grid">
+      {% for entry in entries %}
+        <article class="card card--cover">
+          <a class="card__coverlink" href="{{ url_for('entry_details', entry_id=entry['id']) }}"
+             title="{{ entry['naslov'] }} • {{ entry['avtor'] }}{% if entry['status']=='finished' %} • {{ '%.2f'|format(entry['skupna_ocena']) }} • Tier {{ entry['tier'] }}{% elif entry['status']=='dnf' %} • DNF{% else %} • In progress{% endif %}">
+            {% if entry['slika_naslovnice'] %}
+              <img class="card__cover" src="{{ entry['slika_naslovnice'] }}" alt="{{ entry['naslov'] }}" loading="lazy"
+                   onerror="this.classList.add('card__cover--error');">
+            {% else %}
+              <div class="card__coverph">Ni slike</div>
+            {% endif %}
+            {% if entry['status'] == 'finished' %}
+              <div class="tierbadge tierbadge--{{ entry['tier'] }}">Tier {{ entry['tier'] }}</div>
+            {% elif entry['status'] == 'dnf' %}
+              <div class="tierbadge tierbadge--G">DNF</div>
+            {% else %}
+              <div class="tierbadge tierbadge--IP">In progress</div>
+            {% endif %}
+          </a>
+
+          <div class="card__info">
+            <div class="card__titleline">
+              <h2 class="card__title">{{ entry["naslov"] }}</h2>
+            </div>
+            <div class="card__sub">{{ entry["avtor"] }}</div>
+          </div>
+
+          <div class="card__actions card__actions--compact">
+            <a class="btn btn--small btn--ghost" href="{{ url_for('edit', entry_id=entry['id']) }}">Uredi</a>
+            <form method="POST" action="{{ url_for('delete', entry_id=entry['id']) }}" class="inline">
+              <button class="btn btn--small btn--danger" type="submit">Izbrisi</button>
+            </form>
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+  {% else %}
+    <div class="empty">
+      <p>Trenutno ni nobenega vnosa.</p>
+      <a class="btn" href="{{ url_for('add') }}">Dodaj prvega</a>
+    </div>
+  {% endif %}
+{% endblock %}
