@@ -5,7 +5,7 @@
   <div class="details">
     <div class="details__head">
       <div>
-        <div class="pill">{{ entry['tip'] }} • {{ entry['status'] }}</div>
+        <div class="pill">{{ entry['tip'] }} - {{ t('status.' ~ entry['status']) }}</div>
         <h1 class="details__title">{{ entry["naslov"] }}</h1>
         <p class="details__author">{{ entry["avtor"] }}</p>
         <p class="details__genre">{{ entry["zvrst"] }}</p>
@@ -15,32 +15,32 @@
         <div class="score score--big">
           {% if entry['status'] == 'finished' %}
             <div class="score__value">{{ '%.2f'|format(entry['skupna_ocena']) }}</div>
-            <div class="score__tier">Tier {{ entry['tier'] }}</div>
+            <div class="score__tier">{{ t('common.tier') }} {{ entry['tier'] }}</div>
           {% elif entry['status'] == 'dnf' %}
-            <div class="score__value">DNF</div>
-            <div class="score__tier">Tier G (on god)</div>
+            <div class="score__value">{{ t('common.dnf') }}</div>
+            <div class="score__tier">{{ t('details.score.dnf') }}</div>
           {% else %}
             <div class="score__value">--</div>
-            <div class="score__tier">In progress</div>
+            <div class="score__tier">{{ t('details.score.in_progress') }}</div>
           {% endif %}
         </div>
         <div class="details__actions">
-          <a class="btn btn--small" href="{{ url_for('edit', entry_id=entry['id']) }}">Uredi</a>
+          <a class="btn btn--small" href="{{ url_for('edit', entry_id=entry['id']) }}">{{ t('common.edit') }}</a>
           {% if entry['status'] != 'finished' %}
-            <a class="btn btn--small" href="{{ url_for('finish', entry_id=entry['id']) }}">Finish</a>
+            <a class="btn btn--small" href="{{ url_for('finish', entry_id=entry['id']) }}">{{ t('common.finish') }}</a>
           {% endif %}
           {% if entry['status'] != 'dnf' %}
             <form method="POST" action="{{ url_for('set_dnf', entry_id=entry['id']) }}" class="inline">
-              <button class="btn btn--small btn--danger" type="submit">DNF (on god)</button>
+              <button class="btn btn--small btn--danger" type="submit">{{ t('details.dnf_btn') }}</button>
             </form>
           {% endif %}
           {% if entry['status'] != 'in_progress' %}
             <form method="POST" action="{{ url_for('set_in_progress', entry_id=entry['id']) }}" class="inline">
-              <button class="btn btn--small btn--ghost" type="submit">Nazaj: In progress</button>
+              <button class="btn btn--small btn--ghost" type="submit">{{ t('details.back_in_progress') }}</button>
             </form>
           {% endif %}
           <form method="POST" action="{{ url_for('delete', entry_id=entry['id']) }}" class="inline">
-            <button class="btn btn--small btn--danger" type="submit">Izbriši</button>
+            <button class="btn btn--small btn--danger" type="submit">{{ t('details.delete_btn') }}</button>
           </form>
         </div>
       </div>
@@ -48,31 +48,31 @@
 
     <div class="details__grid">
       <section class="panel">
-        <h2 class="panel__title">Naslovnica</h2>
+        <h2 class="panel__title">{{ t('details.cover') }}</h2>
         {% if entry['slika_naslovnice'] %}
-          <img class="cover" src="{{ entry['slika_naslovnice'] }}" alt="Naslovnica" onerror="this.classList.add('cover--error'); this.alt='Naslovnica (ni na voljo)';">
+          <img class="cover" src="{{ entry['slika_naslovnice'] }}" alt="{{ t('details.cover') }}" onerror="this.classList.add('cover--error');">
         {% else %}
-          <div class="cover cover--placeholder">Ni slike</div>
+          <div class="cover cover--placeholder">{{ t('common.no_cover') }}</div>
         {% endif %}
       </section>
 
       <section class="panel">
-        <h2 class="panel__title">Dolžina</h2>
+        <h2 class="panel__title">{{ t('details.length') }}</h2>
         <div class="kv">
-          <div class="kv__row"><span class="kv__k">Strani</span><span class="kv__v">{{ entry['lengths']['st_strani'] if entry['lengths']['st_strani'] is not none else '-' }}</span></div>
+          <div class="kv__row"><span class="kv__k">{{ t('details.pages') }}</span><span class="kv__v">{{ entry['lengths']['st_strani'] if entry['lengths']['st_strani'] is not none else '-' }}</span></div>
         </div>
       </section>
 
       <section class="panel panel--wide">
-        <h2 class="panel__title">Checkpoint opinions</h2>
+        <h2 class="panel__title">{{ t('details.checkpoints') }}</h2>
         <div class="checkpointlist">
           {% for cp in checkpoints %}
             <form method="POST" action="{{ url_for('save_checkpoint', entry_id=entry['id'], checkpoint=cp.key) }}" class="checkpoint">
               <div class="checkpoint__head">
-                <div class="checkpoint__k">{{ cp.key }}</div>
-                <button class="btn btn--small btn--ghost" type="submit">Shrani</button>
+                <div class="checkpoint__k">{{ t('checkpoint.' ~ cp.key) }}</div>
+                <button class="btn btn--small btn--ghost" type="submit">{{ t('common.save') }}</button>
               </div>
-              <textarea class="textarea" name="opinion" rows="2" placeholder="Tvoje mnenje...">{{ (entry['checkpoints'].get(cp.key) or {}).get('opinion','') }}</textarea>
+              <textarea class="textarea" name="opinion" rows="2" placeholder="{{ t('details.checkpoint_ph') }}">{{ (entry['checkpoints'].get(cp.key) or {}).get('opinion','') }}</textarea>
             </form>
           {% endfor %}
         </div>
@@ -80,7 +80,7 @@
 
       {% if entry['status'] == 'finished' %}
         <section class="panel panel--wide">
-          <h2 class="panel__title">Finalne ocene</h2>
+          <h2 class="panel__title">{{ t('details.final_ratings') }}</h2>
           {% if entry['ratings'] %}
             <div class="ratings">
               {% for k, v in entry['ratings'].items() %}
@@ -91,33 +91,33 @@
               {% endfor %}
             </div>
           {% else %}
-            <p class="muted">Brez ocen.</p>
+            <p class="muted">{{ t('details.no_ratings') }}</p>
           {% endif %}
         </section>
       {% endif %}
 
       <section class="panel panel--wide">
-        <h2 class="panel__title">Mnenje</h2>
+        <h2 class="panel__title">{{ t('details.review') }}</h2>
         <p class="textblock">{{ entry['kratko_mnenje'] or '—' }}</p>
       </section>
 
       <section class="panel panel--wide">
-        <h2 class="panel__title">Citat</h2>
+        <h2 class="panel__title">{{ t('details.quote') }}</h2>
         {% if entry['fav_quote'] %}
           <blockquote class="quote">{{ entry['fav_quote'] }}</blockquote>
         {% else %}
-          <p class="muted">Brez citata.</p>
+          <p class="muted">{{ t('details.no_quote') }}</p>
         {% endif %}
       </section>
 
       <section class="panel panel--wide">
-        <h2 class="panel__title">Opombe</h2>
+        <h2 class="panel__title">{{ t('details.notes') }}</h2>
         <p class="textblock">{{ entry['opombe'] or '—' }}</p>
       </section>
     </div>
 
     <div class="footer-actions">
-      <a class="btn btn--ghost" href="{{ url_for('index') }}">Nazaj</a>
+      <a class="btn btn--ghost" href="{{ url_for('index') }}">{{ t('common.back') }}</a>
     </div>
   </div>
 {% endblock %}

@@ -10,6 +10,7 @@ sys.dont_write_bytecode = True
 import csv
 import io
 import json
+from functools import lru_cache
 
 from flask import Flask, render_template, request, redirect, url_for, abort, Response, flash
 from werkzeug.utils import secure_filename
@@ -40,6 +41,26 @@ UPLOAD_DIR = BASE_DIR / "static" / "covers"
 ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
+@lru_cache(maxsize=1)
+def _load_i18n() -> dict:
+    path = BASE_DIR / "data.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        return {"en": {}, "sl": {}}
+
+
+def _get_lang() -> str:
+    lang = (request.cookies.get("bk_lang") or "en").lower()
+    return lang if lang in ("en", "sl") else "en"
+
+
+def tr(key: str) -> str:
+    data = _load_i18n()
+    lang = _get_lang()
+    return (data.get(lang, {}).get(key)) or (data.get("en", {}).get(key)) or key
+
+
 @app.context_processor
 def _inject_static_version():
     # Cache-bust static files so CSS/JS changes show up immediately.
@@ -52,7 +73,22 @@ def _inject_static_version():
     return {
         "static_v_css": mtime("static/style.css"),
         "static_v_js": mtime("static/app.js"),
+        "lang": _get_lang(),
+        "t": tr,
+        "current_path": (request.full_path[:-1] if request.full_path.endswith("?") else request.full_path),
     }
+
+
+@app.get("/lang/<lang_code>")
+def set_lang(lang_code: str):
+    lang_code = (lang_code or "").lower()
+    if lang_code not in ("en", "sl"):
+        abort(400)
+
+    nxt = request.args.get("next") or url_for("index")
+    resp = redirect(nxt)
+    resp.set_cookie("bk_lang", lang_code, max_age=60 * 60 * 24 * 365)
+    return resp
 
 
 @app.after_request
@@ -158,7 +194,7 @@ def add():
         # Prefer uploaded file; fallback to URL typed in the text field.
         uploaded_cover = _save_cover_upload(request.files.get("cover_file"))
         slika_naslovnice = uploaded_cover or (request.form.get("slika_naslovnice") or "").strip() or None
-        kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or "Brez mnenja"
+        kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or tr("default.review")
         fav_quote = (request.form.get("fav_quote") or "").strip() or None
         opombe = (request.form.get("opombe") or "").strip() or None
 
@@ -182,7 +218,7 @@ def add():
             ratings=None,
         )
 
-        flash("Vnos je dodan.", "success")
+        flash(tr("flash.entry_added"), "success")
         return redirect(url_for("index"))
 
     return render_template("add.html")
@@ -191,7 +227,7 @@ def add():
 @app.post("/delete/<int:entry_id>")
 def delete(entry_id: int):
     delete_entry(entry_id)
-    flash("Vnos je izbrisan.", "success")
+    flash(tr("flash.entry_deleted"), "success")
     return redirect(url_for("index"))
 
 
@@ -218,7 +254,7 @@ def edit(entry_id: int):
 
         uploaded_cover = _save_cover_upload(request.files.get("cover_file"))
         slika_naslovnice = uploaded_cover or (request.form.get("slika_naslovnice") or "").strip() or None
-        kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or "Brez mnenja"
+        kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or tr("default.review")
         fav_quote = (request.form.get("fav_quote") or "").strip() or None
         opombe = (request.form.get("opombe") or "").strip() or None
 
@@ -246,7 +282,7 @@ def edit(entry_id: int):
             # If a new local file was uploaded, remove the old local cover file (if any).
             _maybe_delete_local_cover(entry.get("slika_naslovnice"))
 
-        flash("Spremembe so shranjene.", "success")
+        flash(tr("flash.entry_saved"), "success")
         return redirect(url_for("entry_details", entry_id=entry_id))
 
     return render_template("edit.html", entry=entry)
@@ -264,7 +300,7 @@ def save_checkpoint(entry_id: int, checkpoint: str):
     except ValueError:
         abort(400)
 
-    flash("Checkpoint shranjen.", "success")
+    flash(tr("flash.checkpoint_saved"), "success")
     return redirect(url_for("entry_details", entry_id=entry_id))
 
 
@@ -274,7 +310,7 @@ def set_dnf(entry_id: int):
     if entry is None:
         abort(404)
     mark_dnf(entry_id)
-    flash("Oznaceno kot DNF (on god).", "success")
+    flash(tr("flash.marked_dnf"), "success")
     return redirect(url_for("entry_details", entry_id=entry_id))
 
 
@@ -284,7 +320,7 @@ def set_in_progress(entry_id: int):
     if entry is None:
         abort(404)
     mark_in_progress(entry_id)
-    flash("Oznaceno kot In progress.", "success")
+    flash(tr("flash.marked_in_progress"), "success")
     return redirect(url_for("entry_details", entry_id=entry_id))
 
 
@@ -306,11 +342,11 @@ def finish(entry_id: int):
             ratings[kriterij] = float(raw)
 
         if not ratings:
-            flash("Dodaj vsaj eno oceno, preden zakljucis.", "error")
+            flash(tr("flash.finish_need_rating"), "error")
             return redirect(url_for("finish", entry_id=entry_id))
 
         mark_finished(entry_id, entry.get("tip") or "book", ratings)
-        flash("Vnos zakljucen in ocenjen.", "success")
+        flash(tr("flash.entry_finished"), "success")
         return redirect(url_for("entry_details", entry_id=entry_id))
 
     return render_template("finish.html", entry=entry)
@@ -395,7 +431,7 @@ def weights():
                 continue
             active = raw_a == "on"
             update_rating_setting(sid, w, active)
-        flash("Utezi so shranjeni.", "success")
+        flash(tr("flash.weights_saved"), "success")
         return redirect(url_for("weights"))
 
     settings = get_rating_settings()

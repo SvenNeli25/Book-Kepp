@@ -1,26 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Finish - Book-Keep{% endblock %}
+{% block title %}{{ t('finish.title') }} - Book-Keep{% endblock %}
 
 {% block content %}
   <section class="hero">
-    <h1 class="hero__title">Finish</h1>
-    <p class="hero__subtitle">{{ entry['naslov'] }} • {{ entry['avtor'] }}</p>
+    <h1 class="hero__title">{{ t('finish.title') }}</h1>
+    <p class="hero__subtitle">{{ entry['naslov'] }} - {{ entry['avtor'] }}</p>
   </section>
 
   <form class="form" method="POST" data-entry-form>
     <input type="hidden" name="tip" value="{{ entry['tip'] }}" data-tip>
     <section class="panel">
-      <h2 class="panel__title">Finalne ocene (1-10)</h2>
+      <h2 class="panel__title">{{ t('finish.final_ratings') }}</h2>
       <div class="panel__grid">
         {% for k, label in [
-          ('zgodba','Zgodba'),
-          ('liki','Liki'),
-          ('tempo','Tempo'),
-          ('slog','Slog pisanja'),
-          ('custveni_vpliv','Custveni vpliv'),
-          ('naracija','Naracija'),
-          ('jasnost_govora','Jasnost govora'),
-          ('zvocna_izkusnja','Zvoczna izkusnja')
+          ('zgodba','Story'),
+          ('liki','Characters'),
+          ('tempo','Pacing'),
+          ('slog','Writing style'),
+          ('custveni_vpliv','Emotional impact'),
+          ('naracija','Narration'),
+          ('jasnost_govora','Clarity'),
+          ('zvocna_izkusnja','Audio experience')
         ] %}
           <label class="field" data-kriterij="{{ k }}">
             <span class="field__label">{{ label }}</span>
@@ -28,12 +28,12 @@
           </label>
         {% endfor %}
       </div>
-      <p class="hint">Po shranjevanju se izracuna score in tier (S-F).</p>
+      <p class="hint">{{ t('finish.hint') }}</p>
     </section>
 
     <div class="form__actions">
-      <button class="btn" type="submit">Zakljuci in oceni</button>
-      <a class="btn btn--ghost" href="{{ url_for('entry_details', entry_id=entry['id']) }}">Nazaj</a>
+      <button class="btn" type="submit">{{ t('finish.btn') }}</button>
+      <a class="btn btn--ghost" href="{{ url_for('entry_details', entry_id=entry['id']) }}">{{ t('common.back') }}</a>
     </div>
   </form>
 {% endblock %}

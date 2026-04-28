@@ -1,32 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Statistika - Book-Keep{% endblock %}
+{% block title %}{{ t('stats.title') }} - Book-Keep{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Statistika</h1>
+  <h1 class="page-title">{{ t('stats.title') }}</h1>
 
   <section class="stats">
     <div class="stat">
-      <div class="stat__k">Skupaj vnosov</div>
+      <div class="stat__k">{{ t('stats.total') }}</div>
       <div class="stat__v">{{ total }}</div>
     </div>
     <div class="stat">
-      <div class="stat__k">Knjige</div>
+      <div class="stat__k">{{ t('stats.books') }}</div>
       <div class="stat__v">{{ total_books }}</div>
     </div>
     <div class="stat">
-      <div class="stat__k">Avdioknjige</div>
+      <div class="stat__k">{{ t('stats.audiobooks') }}</div>
       <div class="stat__v">{{ total_audiobooks }}</div>
     </div>
     <div class="stat">
-      <div class="stat__k">Povp. ocena</div>
+      <div class="stat__k">{{ t('stats.avg_score') }}</div>
       <div class="stat__v">{{ avg_score }}</div>
     </div>
     <div class="stat">
-      <div class="stat__k">Naj zvrst</div>
+      <div class="stat__k">{{ t('stats.top_genre') }}</div>
       <div class="stat__v">{{ favorite_genre or '-' }}</div>
     </div>
     <div class="stat">
-      <div class="stat__k">Prebranih strani</div>
+      <div class="stat__k">{{ t('stats.pages_read') }}</div>
       <div class="stat__v">{{ total_pages }}</div>
     </div>
   </section>

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Utezi - Book-Keep{% endblock %}
+{% block title %}{{ t('weights.title') }} - Book-Keep{% endblock %}
 
 {% block content %}
   <section class="hero">
-    <h1 class="hero__title">Utezi (rating_settings)</h1>
-    <p class="hero__subtitle">Spremembe vplivajo na izracun skupne ocene. Obstojece vnose posodobi z urejanjem vnosa.</p>
+    <h1 class="hero__title">{{ t('weights.title') }}</h1>
+    <p class="hero__subtitle">{{ t('weights.subtitle') }}</p>
   </section>
 
   <form class="form" method="POST">
@@ -13,9 +13,9 @@
         <section class="panel">
           <h2 class="panel__title">{{ tip }}</h2>
           <div class="weights__table">
-            <div class="weights__head">Kriterij</div>
-            <div class="weights__head">Utez</div>
-            <div class="weights__head">Aktiven</div>
+            <div class="weights__head">{{ t('weights.criterion') }}</div>
+            <div class="weights__head">{{ t('weights.weight') }}</div>
+            <div class="weights__head">{{ t('weights.active') }}</div>
 
             {% for s in settings if s['tip'] == tip %}
               <div class="weights__cell weights__k">{{ s['kriterij'] }}</div>
@@ -25,7 +25,7 @@
               <div class="weights__cell">
                 <label class="check">
                   <input type="checkbox" name="a_{{ s['id'] }}" {% if s['je_aktiven'] %}checked{% endif %}>
-                  <span>on</span>
+                  <span>{{ t('common.on') }}</span>
                 </label>
               </div>
             {% endfor %}
@@ -35,11 +35,10 @@
     </div>
 
     <div class="form__actions">
-      <button class="btn" type="submit">Shrani</button>
-      <a class="btn btn--ghost" href="{{ url_for('index') }}">Nazaj</a>
-      <a class="btn btn--ghost" href="{{ url_for('export_json') }}">Export JSON</a>
-      <a class="btn btn--ghost" href="{{ url_for('export_csv') }}">Export CSV</a>
+      <button class="btn" type="submit">{{ t('weights.save') }}</button>
+      <a class="btn btn--ghost" href="{{ url_for('index') }}">{{ t('common.back') }}</a>
+      <a class="btn btn--ghost" href="{{ url_for('export_json') }}">{{ t('weights.export_json') }}</a>
+      <a class="btn btn--ghost" href="{{ url_for('export_csv') }}">{{ t('weights.export_csv') }}</a>
     </div>
   </form>
 {% endblock %}
-

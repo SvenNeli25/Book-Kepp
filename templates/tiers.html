@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Tier Board - Book-Keep{% endblock %}
+{% block title %}{{ t('nav.tiers') }} - Book-Keep{% endblock %}
 
 {% block content %}
   <section class="hero">
-    <h1 class="hero__title">Tier Board</h1>
-    <p class="hero__subtitle">Vizualni pregled: In progress, S-F, in DNF.</p>
+    <h1 class="hero__title">{{ t('nav.tiers') }}</h1>
+    <p class="hero__subtitle">{{ t('tiers.subtitle') }}</p>
   </section>
 
   <section class="tierboard">
@@ -17,18 +17,18 @@
           {% if entries %}
             {% for entry in entries %}
               <a class="tiercard" href="{{ url_for('entry_details', entry_id=entry['id']) }}"
-                 title="{{ entry['naslov'] }} • {{ entry['avtor'] }}{% if entry['status']=='finished' %} • {{ '%.2f'|format(entry['skupna_ocena']) }}{% endif %}">
+                 title="{{ entry['naslov'] }} - {{ entry['avtor'] }}{% if entry['status']=='finished' %} - {{ '%.2f'|format(entry['skupna_ocena']) }}{% endif %}">
                 {% if entry['slika_naslovnice'] %}
                   <img class="tiercard__img" src="{{ entry['slika_naslovnice'] }}" alt="{{ entry['naslov'] }}"
                        loading="lazy"
                        onerror="this.classList.add('tiercard__img--error');">
                 {% else %}
-                  <div class="tiercard__ph" aria-label="{{ entry['naslov'] }}">Ni slike</div>
+                  <div class="tiercard__ph" aria-label="{{ entry['naslov'] }}">{{ t('common.no_cover') }}</div>
                 {% endif %}
               </a>
             {% endfor %}
           {% else %}
-            <div class="tierrow__empty muted">Ni vnosov.</div>
+            <div class="tierrow__empty muted">{{ t('tiers.empty') }}</div>
           {% endif %}
         </div>
       </div>

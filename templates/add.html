@@ -1,31 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Dodaj - Book-Keep{% endblock %}
+{% block title %}{{ t('add.title') }} - Book-Keep{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Dodaj</h1>
+  <h1 class="page-title">{{ t('add.title') }}</h1>
 
   <form class="form" method="POST" enctype="multipart/form-data" data-entry-form>
     <div class="form__grid">
       <label class="field">
-        <span class="field__label">Naslov</span>
-        <input class="input" name="naslov" required placeholder="Naslov">
+        <span class="field__label">{{ t('add.field.title') }}</span>
+        <input class="input" name="naslov" required placeholder="{{ t('add.field.title') }}">
       </label>
 
       <label class="field">
-        <span class="field__label">Avtor</span>
-        <input class="input" name="avtor" required placeholder="Avtor">
+        <span class="field__label">{{ t('add.field.author') }}</span>
+        <input class="input" name="avtor" required placeholder="{{ t('add.field.author') }}">
       </label>
 
       <label class="field">
-        <span class="field__label">Tip</span>
+        <span class="field__label">{{ t('add.field.type') }}</span>
         <select class="select" name="tip" data-tip>
-          <option value="book">Knjiga</option>
-          <option value="audiobook">Avdioknjiga</option>
+          <option value="book">{{ t('index.type.book') }}</option>
+          <option value="audiobook">{{ t('index.type.audiobook') }}</option>
         </select>
       </label>
 
       <label class="field">
-        <span class="field__label">Zvrst</span>
+        <span class="field__label">{{ t('add.field.genre') }}</span>
         <select class="select" name="zvrst">
           {% for g in ['Fantazija','Znanstvena fantastika','Romanca','Kriminalka','Triler','Grozljivka','Avantura','Zgodovinski roman','Mladinski roman','Realisticni roman','Self-Help','Drugo'] %}
             <option value="{{ g }}" {% if g == 'Drugo' %}selected{% endif %}>{{ g }}</option>
@@ -34,50 +34,50 @@
       </label>
 
       <label class="field field--wide">
-        <span class="field__label">Slika naslovnice (nalozi datoteko)</span>
+        <span class="field__label">{{ t('add.field.cover_upload') }}</span>
         <input class="input" name="cover_file" type="file" accept="image/*">
       </label>
 
       <label class="field field--wide">
-        <span class="field__label">Slika naslovnice (URL, opcijsko)</span>
+        <span class="field__label">{{ t('add.field.cover_url') }}</span>
         <input class="input" name="slika_naslovnice" placeholder="https://...">
       </label>
 
       <label class="field field--wide">
-        <span class="field__label">Kratko mnenje</span>
-        <textarea class="textarea" name="kratko_mnenje" rows="3" placeholder="Kratek opis / vtis"></textarea>
+        <span class="field__label">{{ t('add.field.review') }}</span>
+        <textarea class="textarea" name="kratko_mnenje" rows="3" placeholder="{{ t('add.field.review') }}"></textarea>
       </label>
 
       <label class="field field--wide">
-        <span class="field__label">Priljubljeni citat</span>
-        <textarea class="textarea" name="fav_quote" rows="2" placeholder="Citat"></textarea>
+        <span class="field__label">{{ t('add.field.quote') }}</span>
+        <textarea class="textarea" name="fav_quote" rows="2" placeholder="{{ t('add.field.quote') }}"></textarea>
       </label>
 
       <label class="field field--wide">
-        <span class="field__label">Opombe</span>
-        <textarea class="textarea" name="opombe" rows="4" placeholder="Opombe"></textarea>
+        <span class="field__label">{{ t('add.field.notes') }}</span>
+        <textarea class="textarea" name="opombe" rows="4" placeholder="{{ t('add.field.notes') }}"></textarea>
       </label>
     </div>
 
     <section class="panel">
-      <h2 class="panel__title">Dolzina</h2>
+      <h2 class="panel__title">{{ t('add.length') }}</h2>
       <div class="panel__grid">
         <label class="field" data-only="book">
-          <span class="field__label">Stevilo strani</span>
-          <input class="input" name="st_strani" type="number" min="1" step="1" inputmode="numeric" placeholder="npr. 320">
+          <span class="field__label">{{ t('add.pages') }}</span>
+          <input class="input" name="st_strani" type="number" min="1" step="1" inputmode="numeric" placeholder="320">
         </label>
       </div>
-      <p class="hint">Stevilo strani je relevantno samo za knjige.</p>
+      <p class="hint">{{ t('add.pages_hint') }}</p>
     </section>
 
     <section class="panel">
-      <h2 class="panel__title">Rating</h2>
-      <p class="hint">Najprej dodaj vnos kot In progress. Ko zakljucis, ga ocenis na strani vnos-a (Finish).</p>
+      <h2 class="panel__title">{{ t('add.rating') }}</h2>
+      <p class="hint">{{ t('add.rating_hint') }}</p>
     </section>
 
     <div class="form__actions">
-      <button class="btn" type="submit">Dodaj</button>
-      <a class="btn btn--ghost" href="{{ url_for('index') }}">Prekliči</a>
+      <button class="btn" type="submit">{{ t('add.btn') }}</button>
+      <a class="btn btn--ghost" href="{{ url_for('index') }}">{{ t('common.cancel') }}</a>
     </div>
   </form>
 {% endblock %}
