@@ -75,4 +75,4 @@ If you drop a book, mark it **DNF** on the entry page.
 ## Notes
 
 - The SQLite DB path is configured in `database.py` and (in this environment) is stored under:
-  `C:\Users\Stefan\.codex\memories\Book-Keep\books.db`
+  `C:\Users\main\.codex\memories\Book-Keep\books.db`
