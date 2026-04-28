@@ -20,11 +20,21 @@ Then open:
 
 - `http://127.0.0.1:5000/`
 
+## Language (EN/SL)
+
+All UI strings live in [data.json](data.json) under `en` and `sl`.
+
+- Use the **EN/SL** toggle in the top navigation to switch language.
+- The app stores the selected language in a cookie: `bk_lang` (`en` or `sl`).
+- Switch links are served by: `GET /lang/<lang_code>?next=<path>`
+
+Note: user-entered content (title, notes, reviews, etc.) is never translated.
+
 ## How To Use
 
 ### 1) Add A New Entry
 
-Go to **Dodaj** (`/add`) and create an entry when you start reading/listening.
+Go to **Add** (`/add`) and create an entry when you start reading/listening.
 
 - New entries start as `in_progress` by default.
 - You can upload a local cover image (saved under `static/covers/`) or paste a cover URL.
