@@ -20,7 +20,7 @@
       <select class="select" name="zvrst">
         <option value="" {% if not zvrst %}selected{% endif %}>{{ t('index.all_genres') }}</option>
         {% for g in ['Fantazija','Znanstvena fantastika','Romanca','Kriminalka','Triler','Grozljivka','Avantura','Zgodovinski roman','Mladinski roman','Realisticni roman','Self-Help','Drugo'] %}
-          <option value="{{ g }}" {% if zvrst == g %}selected{% endif %}>{{ g }}</option>
+          <option value="{{ g }}" {% if zvrst == g %}selected{% endif %}>{{ t('genre.' ~ g) }}</option>
         {% endfor %}
       </select>
 

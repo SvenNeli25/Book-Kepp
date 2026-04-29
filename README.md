@@ -20,6 +20,33 @@ Then open:
 
 - `http://127.0.0.1:5000/`
 
+## Desktop (local app window)
+
+Runs the same Flask app, but inside a desktop window (useful for making an installer later).
+
+```powershell
+pip install pywebview
+python desktop.py
+```
+
+## Build Windows Installer (for GitHub Releases)
+
+1) Install build deps:
+
+```powershell
+pip install pyinstaller pywebview
+```
+
+2) Build exe + installer (requires Inno Setup `iscc` in PATH):
+
+```powershell
+.\build\build_windows.ps1 -Installer
+```
+
+3) Upload the generated installer from `dist-installer\` to a GitHub Release (tag like `v0.1.0`).
+
+The app’s Update page (`/update`) checks GitHub Releases and links the newest `.exe`/`.msi` asset.
+
 ## Language (EN/SL)
 
 All UI strings live in [data.json](data.json) under `en` and `sl`.

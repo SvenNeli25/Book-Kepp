@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ t('nav.signup') }} · Book-Keep{% endblock %}
+
+{% block content %}
+  <h1 class="hero__title">{{ t('nav.signup') }}</h1>
+
+  <form class="form" method="POST" action="{{ url_for('signup') }}">
+    <div class="form__grid">
+      <div class="field field--wide">
+        <label class="field__label" for="username">{{ t('auth.username') }}</label>
+        <input class="input" id="username" name="username" autocomplete="username" required>
+      </div>
+      <div class="field field--wide">
+        <label class="field__label" for="password">{{ t('auth.password') }}</label>
+        <input class="input" id="password" name="password" type="password" autocomplete="new-password" required>
+      </div>
+      <div class="field field--wide">
+        <label class="field__label" for="password2">{{ t('auth.password_confirm') }}</label>
+        <input class="input" id="password2" name="password2" type="password" autocomplete="new-password" required>
+      </div>
+    </div>
+    <div class="form__actions">
+      <button class="btn btn--primary" type="submit">{{ t('nav.signup') }}</button>
+      <a class="btn" href="{{ url_for('login') }}">{{ t('nav.login') }}</a>
+    </div>
+  </form>
+{% endblock %}

@@ -12,12 +12,21 @@
     <div class="wrap topbar__inner">
       <a class="brand" href="{{ url_for('index') }}">Book-Keep</a>
       <nav class="nav">
-        <a class="nav__link" href="{{ url_for('add') }}">{{ t('nav.add') }}</a>
-        <a class="nav__link" href="{{ url_for('tiers') }}">{{ t('nav.tiers') }}</a>
-        <a class="nav__link" href="{{ url_for('stats') }}">{{ t('nav.stats') }}</a>
-        <a class="nav__link" href="{{ url_for('weights') }}">{{ t('nav.weights') }}</a>
-        <button class="nav__link nav__btn" type="button" data-density-toggle title="Toggle density">{{ t('nav.density') }}</button>
-        <a class="nav__link" href="{{ url_for('set_lang', lang_code=('sl' if lang=='en' else 'en'), next=current_path) }}" title="{{ t('nav.lang_title') }}">{{ t('nav.lang') }}</a>
+        {% if current_user %}
+          <a class="nav__link" href="{{ url_for('add') }}">{{ t('nav.add') }}</a>
+          <a class="nav__link" href="{{ url_for('tiers') }}">{{ t('nav.tiers') }}</a>
+          <a class="nav__link" href="{{ url_for('stats') }}">{{ t('nav.stats') }}</a>
+          <a class="nav__link" href="{{ url_for('weights') }}">{{ t('nav.weights') }}</a>
+          <a class="nav__link" href="{{ url_for('check_update') }}">{{ t('nav.update') }}</a>
+          <button class="nav__link nav__btn" type="button" data-density-toggle title="Toggle density">{{ t('nav.density') }}</button>
+          <a class="nav__link" href="{{ url_for('set_lang', lang_code=('sl' if lang=='en' else 'en'), next=current_path) }}" title="{{ t('nav.lang_title') }}">{{ t('nav.lang') }}</a>
+          <span class="nav__link" aria-label="User">{{ current_user.username }}</span>
+          <a class="nav__link" href="{{ url_for('logout') }}">{{ t('nav.logout') }}</a>
+        {% else %}
+          <a class="nav__link" href="{{ url_for('login') }}">{{ t('nav.login') }}</a>
+          <a class="nav__link" href="{{ url_for('signup') }}">{{ t('nav.signup') }}</a>
+          <a class="nav__link" href="{{ url_for('set_lang', lang_code=('sl' if lang=='en' else 'en'), next=current_path) }}" title="{{ t('nav.lang_title') }}">{{ t('nav.lang') }}</a>
+        {% endif %}
       </nav>
     </div>
   </header>

@@ -13,21 +13,31 @@ import json
 from functools import lru_cache
 
 from flask import Flask, render_template, request, redirect, url_for, abort, Response, flash
+from flask import session
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+
+from app_version import __version__
+import updater
 from database import (
-    get_all_entries,
-    get_entry,
+    get_all_entries_for_user,
+    get_entry_for_user,
     add_entry,
     update_entry,
-    delete_entry,
+    delete_entry_for_user,
     init_db,
-    get_rating_settings,
+    get_rating_settings_for_user,
     update_rating_setting,
     CHECKPOINTS,
     upsert_checkpoint,
     mark_dnf,
     mark_in_progress,
     mark_finished,
+    get_user_by_username,
+    create_user,
+    count_users,
+    claim_orphaned_data,
+    seed_rating_settings_for_user,
 )
 
 app = Flask(__name__)
@@ -39,10 +49,20 @@ app.secret_key = "dev"
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "static" / "covers"
 ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+AUTH_EXEMPT_ENDPOINTS = {"login", "signup", "set_lang", "static"}
 
 
-@lru_cache(maxsize=1)
 def _load_i18n() -> dict:
+    path = BASE_DIR / "data.json"
+    try:
+        mtime = int(path.stat().st_mtime)
+    except OSError:
+        mtime = -1
+    return _load_i18n_cached(mtime)
+
+
+@lru_cache(maxsize=4)
+def _load_i18n_cached(_mtime: int) -> dict:
     path = BASE_DIR / "data.json"
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -58,7 +78,12 @@ def _get_lang() -> str:
 def tr(key: str) -> str:
     data = _load_i18n()
     lang = _get_lang()
-    return (data.get(lang, {}).get(key)) or (data.get("en", {}).get(key)) or key
+    v = (data.get(lang, {}).get(key)) or (data.get("en", {}).get(key))
+    if v:
+        return v
+    if key.startswith("genre."):
+        return key.removeprefix("genre.")
+    return key
 
 
 @app.context_processor
@@ -76,7 +101,95 @@ def _inject_static_version():
         "lang": _get_lang(),
         "t": tr,
         "current_path": (request.full_path[:-1] if request.full_path.endswith("?") else request.full_path),
+        "current_user": {"id": session.get("user_id"), "username": session.get("username")} if session.get("user_id") else None,
+        "app_version": __version__,
     }
+
+
+@app.get("/update")
+def check_update():
+    info = updater.get_update_info(timeout_s=2.5)
+    return render_template("update.html", info=info)
+
+
+def _current_user_id() -> int | None:
+    uid = session.get("user_id")
+    return int(uid) if uid is not None else None
+
+
+@app.before_request
+def _require_login():
+    # Require login for all app routes except auth/lang/static.
+    if request.endpoint in AUTH_EXEMPT_ENDPOINTS:
+        return None
+    if request.endpoint is None:
+        return None
+    if _current_user_id() is None:
+        nxt = request.full_path[:-1] if request.full_path.endswith("?") else request.full_path
+        return redirect(url_for("login", next=nxt))
+    return None
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        user = get_user_by_username(username)
+        if not user or not check_password_hash(user.get("password_hash") or "", password):
+            flash(tr("flash.login_failed"), "error")
+            return redirect(url_for("login", next=request.args.get("next") or ""))
+
+        session.clear()
+        session["user_id"] = int(user["id"])
+        session["username"] = user["username"]
+        seed_rating_settings_for_user(int(user["id"]))
+
+        nxt = (request.args.get("next") or "").strip() or url_for("index")
+        return redirect(nxt)
+
+    return render_template("login.html")
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        password2 = request.form.get("password2") or ""
+
+        if not username or len(username) < 3:
+            flash(tr("flash.signup_bad_username"), "error")
+            return redirect(url_for("signup"))
+        if not password or len(password) < 6:
+            flash(tr("flash.signup_bad_password"), "error")
+            return redirect(url_for("signup"))
+        if password != password2:
+            flash(tr("flash.signup_pw_mismatch"), "error")
+            return redirect(url_for("signup"))
+        if get_user_by_username(username):
+            flash(tr("flash.signup_exists"), "error")
+            return redirect(url_for("signup"))
+
+        uid = create_user(username, generate_password_hash(password))
+        if count_users() == 1:
+            claim_orphaned_data(uid)
+        seed_rating_settings_for_user(uid)
+
+        session.clear()
+        session["user_id"] = int(uid)
+        session["username"] = username
+
+        flash(tr("flash.signup_success"), "success")
+        return redirect(url_for("index"))
+
+    return render_template("signup.html")
+
+
+@app.get("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 @app.get("/lang/<lang_code>")
@@ -103,7 +216,7 @@ def _is_allowed_image(filename: str) -> bool:
     return ext in ALLOWED_IMAGE_EXTS
 
 
-def _save_cover_upload(file_storage) -> str | None:
+def _save_cover_upload(user_id: int, file_storage) -> str | None:
     """
     Save an uploaded cover image under static/covers and return its public URL
     path (e.g. /static/covers/abc.jpg). Returns None when no file was uploaded.
@@ -118,15 +231,16 @@ def _save_cover_upload(file_storage) -> str | None:
     if not _is_allowed_image(filename):
         abort(400, description="Unsupported cover image type.")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    user_dir = UPLOAD_DIR / str(int(user_id))
+    user_dir.mkdir(parents=True, exist_ok=True)
 
     ext = Path(filename).suffix.lower()
     token = secrets.token_hex(8)
     out_name = f"{token}{ext}"
-    out_path = UPLOAD_DIR / out_name
+    out_path = user_dir / out_name
     file_storage.save(out_path)
 
-    return url_for("static", filename=f"covers/{out_name}")
+    return url_for("static", filename=f"covers/{int(user_id)}/{out_name}")
 
 
 def _maybe_delete_local_cover(url_path: str | None) -> None:
@@ -148,7 +262,7 @@ def _maybe_delete_local_cover(url_path: str | None) -> None:
 
 @app.route("/")
 def index():
-    entries = get_all_entries()
+    entries = get_all_entries_for_user(_current_user_id())
 
     q = (request.args.get("q") or "").strip().lower()
     tip = (request.args.get("tip") or "").strip()
@@ -186,13 +300,16 @@ def index():
 @app.route("/add", methods=["GET", "POST"])
 def add():
     if request.method == "POST":
+        uid = _current_user_id()
+        if uid is None:
+            abort(401)
         naslov = (request.form.get("naslov") or "").strip()
         avtor = (request.form.get("avtor") or "").strip()
         tip = (request.form.get("tip") or "book").strip()
         zvrst = (request.form.get("zvrst") or "Drugo").strip()
 
         # Prefer uploaded file; fallback to URL typed in the text field.
-        uploaded_cover = _save_cover_upload(request.files.get("cover_file"))
+        uploaded_cover = _save_cover_upload(uid, request.files.get("cover_file"))
         slika_naslovnice = uploaded_cover or (request.form.get("slika_naslovnice") or "").strip() or None
         kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or tr("default.review")
         fav_quote = (request.form.get("fav_quote") or "").strip() or None
@@ -216,6 +333,7 @@ def add():
             status="in_progress",
             st_strani=st_strani,
             ratings=None,
+            user_id=uid,
         )
 
         flash(tr("flash.entry_added"), "success")
@@ -226,14 +344,20 @@ def add():
 
 @app.post("/delete/<int:entry_id>")
 def delete(entry_id: int):
-    delete_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    delete_entry_for_user(entry_id=entry_id, user_id=uid)
     flash(tr("flash.entry_deleted"), "success")
     return redirect(url_for("index"))
 
 
 @app.route("/entry/<int:entry_id>")
 def entry_details(entry_id: int):
-    entry = get_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    entry = get_entry_for_user(entry_id=entry_id, user_id=uid)
     if entry is None:
         abort(404)
     checkpoints = [{"key": k, "label": k} for k in CHECKPOINTS]
@@ -242,7 +366,10 @@ def entry_details(entry_id: int):
 
 @app.route("/edit/<int:entry_id>", methods=["GET", "POST"])
 def edit(entry_id: int):
-    entry = get_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    entry = get_entry_for_user(entry_id=entry_id, user_id=uid)
     if entry is None:
         abort(404)
 
@@ -252,7 +379,7 @@ def edit(entry_id: int):
         tip = (request.form.get("tip") or "book").strip()
         zvrst = (request.form.get("zvrst") or "Drugo").strip()
 
-        uploaded_cover = _save_cover_upload(request.files.get("cover_file"))
+        uploaded_cover = _save_cover_upload(uid, request.files.get("cover_file"))
         slika_naslovnice = uploaded_cover or (request.form.get("slika_naslovnice") or "").strip() or None
         kratko_mnenje = (request.form.get("kratko_mnenje") or "").strip() or tr("default.review")
         fav_quote = (request.form.get("fav_quote") or "").strip() or None
@@ -276,6 +403,7 @@ def edit(entry_id: int):
             opombe=opombe,
             st_strani=st_strani,
             ratings=None,
+            user_id=uid,
         )
 
         if uploaded_cover:
@@ -290,13 +418,16 @@ def edit(entry_id: int):
 
 @app.post("/entry/<int:entry_id>/checkpoint/<checkpoint>")
 def save_checkpoint(entry_id: int, checkpoint: str):
-    entry = get_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    entry = get_entry_for_user(entry_id=entry_id, user_id=uid)
     if entry is None:
         abort(404)
 
     opinion = (request.form.get("opinion") or "").strip() or None
     try:
-        upsert_checkpoint(entry_id, checkpoint, opinion)
+        upsert_checkpoint(entry_id, checkpoint, opinion, user_id=uid)
     except ValueError:
         abort(400)
 
@@ -306,27 +437,36 @@ def save_checkpoint(entry_id: int, checkpoint: str):
 
 @app.post("/entry/<int:entry_id>/dnf")
 def set_dnf(entry_id: int):
-    entry = get_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    entry = get_entry_for_user(entry_id=entry_id, user_id=uid)
     if entry is None:
         abort(404)
-    mark_dnf(entry_id)
+    mark_dnf(entry_id, user_id=uid)
     flash(tr("flash.marked_dnf"), "success")
     return redirect(url_for("entry_details", entry_id=entry_id))
 
 
 @app.post("/entry/<int:entry_id>/in_progress")
 def set_in_progress(entry_id: int):
-    entry = get_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    entry = get_entry_for_user(entry_id=entry_id, user_id=uid)
     if entry is None:
         abort(404)
-    mark_in_progress(entry_id)
+    mark_in_progress(entry_id, user_id=uid)
     flash(tr("flash.marked_in_progress"), "success")
     return redirect(url_for("entry_details", entry_id=entry_id))
 
 
 @app.route("/finish/<int:entry_id>", methods=["GET", "POST"])
 def finish(entry_id: int):
-    entry = get_entry(entry_id)
+    uid = _current_user_id()
+    if uid is None:
+        abort(401)
+    entry = get_entry_for_user(entry_id=entry_id, user_id=uid)
     if entry is None:
         abort(404)
 
@@ -345,7 +485,7 @@ def finish(entry_id: int):
             flash(tr("flash.finish_need_rating"), "error")
             return redirect(url_for("finish", entry_id=entry_id))
 
-        mark_finished(entry_id, entry.get("tip") or "book", ratings)
+        mark_finished(entry_id, entry.get("tip") or "book", ratings, user_id=uid)
         flash(tr("flash.entry_finished"), "success")
         return redirect(url_for("entry_details", entry_id=entry_id))
 
@@ -354,7 +494,7 @@ def finish(entry_id: int):
 
 @app.route("/stats")
 def stats():
-    entries = get_all_entries()
+    entries = get_all_entries_for_user(_current_user_id())
 
     # Stats are for finished items only (exclude in-progress and DNF).
     finished = [e for e in entries if e.get("status") == "finished"]
@@ -375,7 +515,7 @@ def stats():
     # We'll compute via per-entry load to avoid duplicating SQL right now.
     total_pages = 0
     for e in finished:
-        full = get_entry(int(e["id"]))
+        full = get_entry_for_user(entry_id=int(e["id"]), user_id=_current_user_id())
         if not full:
             continue
         st = full["lengths"].get("st_strani")
@@ -395,7 +535,7 @@ def stats():
 
 @app.route("/tiers")
 def tiers():
-    entries = get_all_entries()
+    entries = get_all_entries_for_user(_current_user_id())
     grouped = {k: [] for k in ["IN_PROGRESS", "S", "A", "B", "C", "D", "F", "G"]}
 
     for e in entries:
@@ -418,7 +558,7 @@ def tiers():
 def weights():
     if request.method == "POST":
         # Update settings in bulk from the posted form.
-        settings = get_rating_settings()
+        settings = get_rating_settings_for_user(_current_user_id())
         for s in settings:
             sid = int(s["id"])
             raw_w = (request.form.get(f"w_{sid}") or "").strip()
@@ -430,20 +570,20 @@ def weights():
             except ValueError:
                 continue
             active = raw_a == "on"
-            update_rating_setting(sid, w, active)
+            update_rating_setting(sid, w, active, user_id=_current_user_id())
         flash(tr("flash.weights_saved"), "success")
         return redirect(url_for("weights"))
 
-    settings = get_rating_settings()
+    settings = get_rating_settings_for_user(_current_user_id())
     return render_template("weights.html", settings=settings)
 
 
 @app.get("/export.json")
 def export_json():
-    entries = get_all_entries()
+    entries = get_all_entries_for_user(_current_user_id())
     full = []
     for e in entries:
-        fe = get_entry(int(e["id"]))
+        fe = get_entry_for_user(entry_id=int(e["id"]), user_id=_current_user_id())
         if fe:
             full.append(fe)
     payload = {"entries": full}
@@ -452,7 +592,7 @@ def export_json():
 
 @app.get("/export.csv")
 def export_csv():
-    entries = get_all_entries()
+    entries = get_all_entries_for_user(_current_user_id())
     out = io.StringIO()
     w = csv.writer(out)
 
@@ -476,7 +616,7 @@ def export_csv():
     )
 
     for e in entries:
-        fe = get_entry(int(e["id"]))
+        fe = get_entry_for_user(entry_id=int(e["id"]), user_id=_current_user_id())
         if not fe:
             continue
         w.writerow(

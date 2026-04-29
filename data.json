@@ -7,6 +7,23 @@
     "nav.density": "Density",
     "nav.lang": "SL",
     "nav.lang_title": "Switch language",
+    "nav.login": "Log in",
+    "nav.signup": "Sign up",
+    "nav.logout": "Log out",
+    "nav.update": "Update",
+
+    "auth.username": "Username",
+    "auth.password": "Password",
+    "auth.password_confirm": "Confirm password",
+
+    "update.title": "Updates",
+    "update.available": "Update available",
+    "update.none": "No update found",
+    "update.current": "Current version",
+    "update.latest": "Latest version",
+    "update.open_release": "Open release page",
+    "update.download_installer": "Download installer",
+    "update.note": "If you're offline, the updater cannot check GitHub.",
 
     "common.apply": "Apply",
     "common.clear": "Clear",
@@ -105,6 +122,19 @@
     "weights.export_json": "Export JSON",
     "weights.export_csv": "Export CSV",
 
+    "genre.Fantazija": "Fantasy",
+    "genre.Znanstvena fantastika": "Science fiction",
+    "genre.Romanca": "Romance",
+    "genre.Kriminalka": "Crime",
+    "genre.Triler": "Thriller",
+    "genre.Grozljivka": "Horror",
+    "genre.Avantura": "Adventure",
+    "genre.Zgodovinski roman": "Historical fiction",
+    "genre.Mladinski roman": "Young adult",
+    "genre.Realisticni roman": "Realistic fiction",
+    "genre.Self-Help": "Self-help",
+    "genre.Drugo": "Other",
+
     "checkpoint.pages_5": "5 pages",
     "checkpoint.first_chapter": "First chapter",
     "checkpoint.pct_25": "25%",
@@ -121,7 +151,13 @@
     "flash.finish_need_rating": "Add at least one rating before finishing.",
     "flash.entry_finished": "Entry finished and rated.",
     "flash.weights_saved": "Weights saved.",
-    "flash.entry_saved": "Changes saved."
+    "flash.entry_saved": "Changes saved.",
+    "flash.login_failed": "Invalid username or password.",
+    "flash.signup_bad_username": "Username must be at least 3 characters.",
+    "flash.signup_bad_password": "Password must be at least 6 characters.",
+    "flash.signup_pw_mismatch": "Passwords do not match.",
+    "flash.signup_exists": "Username is already taken.",
+    "flash.signup_success": "Account created."
     ,
     "default.review": "No review"
   },
@@ -133,6 +169,23 @@
     "nav.density": "Gostota",
     "nav.lang": "EN",
     "nav.lang_title": "Zamenjaj jezik",
+    "nav.login": "Prijava",
+    "nav.signup": "Ustvari racun",
+    "nav.logout": "Odjava",
+    "nav.update": "Posodobitve",
+
+    "auth.username": "Uporabnisko ime",
+    "auth.password": "Geslo",
+    "auth.password_confirm": "Ponovi geslo",
+
+    "update.title": "Posodobitve",
+    "update.available": "Na voljo je posodobitev",
+    "update.none": "Ni posodobitev",
+    "update.current": "Trenutna verzija",
+    "update.latest": "Zadnja verzija",
+    "update.open_release": "Odpri release stran",
+    "update.download_installer": "Prenesi installer",
+    "update.note": "Ce ni interneta, preverjanje na GitHub ne deluje.",
 
     "common.apply": "Uporabi",
     "common.clear": "Pocisti",
@@ -231,6 +284,19 @@
     "weights.export_json": "Export JSON",
     "weights.export_csv": "Export CSV",
 
+    "genre.Fantazija": "Fantazija",
+    "genre.Znanstvena fantastika": "Znanstvena fantastika",
+    "genre.Romanca": "Romanca",
+    "genre.Kriminalka": "Kriminalka",
+    "genre.Triler": "Triler",
+    "genre.Grozljivka": "Grozljivka",
+    "genre.Avantura": "Avantura",
+    "genre.Zgodovinski roman": "Zgodovinski roman",
+    "genre.Mladinski roman": "Mladinski roman",
+    "genre.Realisticni roman": "Realisticni roman",
+    "genre.Self-Help": "Self-Help",
+    "genre.Drugo": "Drugo",
+
     "checkpoint.pages_5": "5 strani",
     "checkpoint.first_chapter": "Prvo poglavje",
     "checkpoint.pct_25": "25%",
@@ -247,7 +313,13 @@
     "flash.finish_need_rating": "Dodaj vsaj eno oceno, preden zakljucis.",
     "flash.entry_finished": "Vnos zakljucen in ocenjen.",
     "flash.weights_saved": "Utezi so shranjeni.",
-    "flash.entry_saved": "Spremembe so shranjene."
+    "flash.entry_saved": "Spremembe so shranjene.",
+    "flash.login_failed": "Napacno uporabnisko ime ali geslo.",
+    "flash.signup_bad_username": "Uporabnisko ime naj bo vsaj 3 znake.",
+    "flash.signup_bad_password": "Geslo naj bo vsaj 6 znakov.",
+    "flash.signup_pw_mismatch": "Gesli se ne ujemata.",
+    "flash.signup_exists": "Uporabnisko ime je ze zasedeno.",
+    "flash.signup_success": "Racun je ustvarjen."
     ,
     "default.review": "Brez mnenja"
   }

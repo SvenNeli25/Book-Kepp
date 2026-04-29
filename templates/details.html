@@ -8,7 +8,7 @@
         <div class="pill">{{ entry['tip'] }} - {{ t('status.' ~ entry['status']) }}</div>
         <h1 class="details__title">{{ entry["naslov"] }}</h1>
         <p class="details__author">{{ entry["avtor"] }}</p>
-        <p class="details__genre">{{ entry["zvrst"] }}</p>
+        <p class="details__genre">{{ t('genre.' ~ entry["zvrst"]) }}</p>
       </div>
 
       <div class="details__score">

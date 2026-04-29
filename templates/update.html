@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ t('update.title') }} · Book-Keep{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">{{ t('update.title') }}</h1>
+
+  {% if info %}
+    <div class="panel">
+      <h2 class="panel__title">{{ t('update.available') }}</h2>
+      <p class="hint">{{ t('update.current') }}: v{{ info.current_version }} · {{ t('update.latest') }}: {{ info.latest_tag }}</p>
+      <div class="form__actions">
+        <a class="btn" href="{{ info.release_url }}" target="_blank" rel="noopener noreferrer">{{ t('update.open_release') }}</a>
+        {% if info.installer_url %}
+          <a class="btn btn--primary" href="{{ info.installer_url }}" target="_blank" rel="noopener noreferrer">{{ t('update.download_installer') }}</a>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div class="panel">
+      <h2 class="panel__title">{{ t('update.none') }}</h2>
+      <p class="hint">{{ t('update.current') }}: v{{ app_version }}</p>
+      <p class="hint">{{ t('update.note') }}</p>
+    </div>
+  {% endif %}
+{% endblock %}
+

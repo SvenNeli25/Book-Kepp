@@ -28,7 +28,7 @@
         <span class="field__label">{{ t('add.field.genre') }}</span>
         <select class="select" name="zvrst">
           {% for g in ['Fantazija','Znanstvena fantastika','Romanca','Kriminalka','Triler','Grozljivka','Avantura','Zgodovinski roman','Mladinski roman','Realisticni roman','Self-Help','Drugo'] %}
-            <option value="{{ g }}" {% if entry['zvrst'] == g %}selected{% endif %}>{{ g }}</option>
+            <option value="{{ g }}" {% if entry['zvrst'] == g %}selected{% endif %}>{{ t('genre.' ~ g) }}</option>
           {% endfor %}
         </select>
       </label>

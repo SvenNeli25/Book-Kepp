@@ -66,20 +66,35 @@ def calculate_tier(score: float) -> str:
 
 
 def delete_entry(entry_id: int) -> None:
+    delete_entry_for_user(entry_id=entry_id, user_id=None)
+
+
+def delete_entry_for_user(entry_id: int, user_id: int | None) -> None:
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
+    if user_id is None:
+        cursor.execute("DELETE FROM entries WHERE id = ?", (int(entry_id),))
+    else:
+        cursor.execute("DELETE FROM entries WHERE id = ? AND user_id = ?", (int(entry_id), int(user_id)))
+
     conn.commit()
     conn.close()
 
 
 def get_all_entries():
+    return get_all_entries_for_user(user_id=None)
+
+
+def get_all_entries_for_user(user_id: int | None):
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM entries")
+    if user_id is None:
+        cursor.execute("SELECT * FROM entries")
+    else:
+        cursor.execute("SELECT * FROM entries WHERE user_id = ?", (int(user_id),))
     rows = cursor.fetchall()
 
     conn.close()
@@ -87,11 +102,18 @@ def get_all_entries():
 
 
 def get_entry(entry_id: int) -> Optional[Dict[str, Any]]:
+    return get_entry_for_user(entry_id=entry_id, user_id=None)
+
+
+def get_entry_for_user(entry_id: int, user_id: int | None) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM entries WHERE id = ?", (entry_id,))
+    if user_id is None:
+        cursor.execute("SELECT * FROM entries WHERE id = ?", (int(entry_id),))
+    else:
+        cursor.execute("SELECT * FROM entries WHERE id = ? AND user_id = ?", (int(entry_id), int(user_id)))
     entry_row = cursor.fetchone()
     if entry_row is None:
         conn.close()
@@ -119,13 +141,23 @@ def get_entry(entry_id: int) -> Optional[Dict[str, Any]]:
 
 
 def get_rating_weights(tip: str) -> Dict[str, float]:
+    return get_rating_weights_for_user(tip=tip, user_id=None)
+
+
+def get_rating_weights_for_user(tip: str, user_id: int | None) -> Dict[str, float]:
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT kriterij, utez FROM rating_settings WHERE tip = ? AND je_aktiven = 1",
-        (tip,),
-    )
+    if user_id is None:
+        cursor.execute(
+            "SELECT kriterij, utez FROM rating_settings WHERE tip = ? AND je_aktiven = 1",
+            (tip,),
+        )
+    else:
+        cursor.execute(
+            "SELECT kriterij, utez FROM rating_settings WHERE user_id = ? AND tip = ? AND je_aktiven = 1",
+            (int(user_id), tip),
+        )
     rows = cursor.fetchall()
     conn.close()
 
@@ -139,22 +171,38 @@ def get_rating_weights(tip: str) -> Dict[str, float]:
 
 
 def get_rating_settings() -> list[dict[str, Any]]:
+    return get_rating_settings_for_user(user_id=None)
+
+
+def get_rating_settings_for_user(user_id: int | None) -> list[dict[str, Any]]:
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT id, tip, kriterij, utez, je_aktiven FROM rating_settings ORDER BY tip, id")
+    if user_id is None:
+        cur.execute("SELECT id, tip, kriterij, utez, je_aktiven FROM rating_settings ORDER BY tip, id")
+    else:
+        cur.execute(
+            "SELECT id, tip, kriterij, utez, je_aktiven FROM rating_settings WHERE user_id = ? ORDER BY tip, id",
+            (int(user_id),),
+        )
     rows = cur.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
-def update_rating_setting(setting_id: int, utez: float, je_aktiven: bool) -> None:
+def update_rating_setting(setting_id: int, utez: float, je_aktiven: bool, *, user_id: int | None = None) -> None:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE rating_settings SET utez = ?, je_aktiven = ? WHERE id = ?",
-        (float(utez), 1 if je_aktiven else 0, int(setting_id)),
-    )
+    if user_id is None:
+        cur.execute(
+            "UPDATE rating_settings SET utez = ?, je_aktiven = ? WHERE id = ?",
+            (float(utez), 1 if je_aktiven else 0, int(setting_id)),
+        )
+    else:
+        cur.execute(
+            "UPDATE rating_settings SET utez = ?, je_aktiven = ? WHERE id = ? AND user_id = ?",
+            (float(utez), 1 if je_aktiven else 0, int(setting_id), int(user_id)),
+        )
     conn.commit()
     conn.close()
 
@@ -174,6 +222,8 @@ def add_entry(
     tier: Optional[str] = None,
     st_strani: Optional[int] = None,
     ratings: Optional[Dict[str, float]] = None,
+    *,
+    user_id: int | None = None,
 ) -> int:
 
     if ratings is None:
@@ -184,7 +234,7 @@ def add_entry(
 
     if status == "finished":
         if skupna_ocena is None:
-            weights = get_rating_weights(tip)
+            weights = get_rating_weights_for_user(tip, user_id=user_id)
             skupna_ocena = calculate_score(ratings, weights)
         if tier is None:
             tier = calculate_tier(float(skupna_ocena or 0))
@@ -201,10 +251,11 @@ def add_entry(
 
     cursor.execute("""
         INSERT INTO entries 
-        (naslov, avtor, tip, zvrst, slika_naslovnice, kratko_mnenje, fav_quote, opombe,
+        (user_id, naslov, avtor, tip, zvrst, slika_naslovnice, kratko_mnenje, fav_quote, opombe,
          status, started_at, finished_at, dnf_at, skupna_ocena, tier)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
+        int(user_id) if user_id is not None else None,
         naslov, avtor, tip, zvrst, slika_naslovnice,
         kratko_mnenje, fav_quote, opombe,
         status,
@@ -252,17 +303,21 @@ def update_entry(
     opombe: Optional[str],
     st_strani: Optional[int] = None,
     ratings: Optional[Dict[str, float]] = None,
+    *,
+    user_id: int | None = None,
 ) -> None:
     if ratings is None:
         ratings = {}
 
-    existing = get_entry(entry_id)
+    existing = get_entry_for_user(entry_id=entry_id, user_id=user_id) if user_id is not None else get_entry(entry_id)
+    if user_id is not None and existing is None:
+        raise ValueError("Entry not found")
     status = (existing or {}).get("status") or "in_progress"
     skupna_ocena = (existing or {}).get("skupna_ocena")
     tier = (existing or {}).get("tier")
 
     if status == "finished":
-        weights = get_rating_weights(tip)
+        weights = get_rating_weights_for_user(tip, user_id=user_id)
         skupna_ocena = calculate_score(ratings, weights)
         tier = calculate_tier(skupna_ocena)
     elif status == "dnf":
@@ -275,27 +330,51 @@ def update_entry(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE entries
-        SET naslov = ?, avtor = ?, tip = ?, zvrst = ?, slika_naslovnice = ?,
-            kratko_mnenje = ?, fav_quote = ?, opombe = ?, skupna_ocena = ?, tier = ?
-        WHERE id = ?
-        """,
-        (
-            naslov,
-            avtor,
-            tip,
-            zvrst,
-            slika_naslovnice,
-            kratko_mnenje,
-            fav_quote,
-            opombe,
-            skupna_ocena,
-            tier,
-            entry_id,
-        ),
-    )
+    if user_id is None:
+        cursor.execute(
+            """
+            UPDATE entries
+            SET naslov = ?, avtor = ?, tip = ?, zvrst = ?, slika_naslovnice = ?,
+                kratko_mnenje = ?, fav_quote = ?, opombe = ?, skupna_ocena = ?, tier = ?
+            WHERE id = ?
+            """,
+            (
+                naslov,
+                avtor,
+                tip,
+                zvrst,
+                slika_naslovnice,
+                kratko_mnenje,
+                fav_quote,
+                opombe,
+                skupna_ocena,
+                tier,
+                int(entry_id),
+            ),
+        )
+    else:
+        cursor.execute(
+            """
+            UPDATE entries
+            SET naslov = ?, avtor = ?, tip = ?, zvrst = ?, slika_naslovnice = ?,
+                kratko_mnenje = ?, fav_quote = ?, opombe = ?, skupna_ocena = ?, tier = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (
+                naslov,
+                avtor,
+                tip,
+                zvrst,
+                slika_naslovnice,
+                kratko_mnenje,
+                fav_quote,
+                opombe,
+                skupna_ocena,
+                tier,
+                int(entry_id),
+                int(user_id),
+            ),
+        )
 
     cursor.execute("SELECT id FROM entry_lengths WHERE entry_id = ?", (entry_id,))
     length_id = cursor.fetchone()
@@ -322,9 +401,13 @@ def update_entry(
     conn.close()
 
 
-def upsert_checkpoint(entry_id: int, checkpoint: str, opinion: str | None) -> None:
+def upsert_checkpoint(entry_id: int, checkpoint: str, opinion: str | None, *, user_id: int | None = None) -> None:
     if checkpoint not in CHECKPOINTS:
         raise ValueError("Invalid checkpoint")
+
+    if user_id is not None:
+        if get_entry_for_user(entry_id=int(entry_id), user_id=int(user_id)) is None:
+            raise ValueError("Entry not found")
 
     now = _now_iso()
     conn = get_connection()
@@ -343,38 +426,150 @@ def upsert_checkpoint(entry_id: int, checkpoint: str, opinion: str | None) -> No
     conn.close()
 
 
-def mark_dnf(entry_id: int) -> None:
+def mark_dnf(entry_id: int, *, user_id: int | None = None) -> None:
+    if user_id is not None and get_entry_for_user(entry_id=int(entry_id), user_id=int(user_id)) is None:
+        raise ValueError("Entry not found")
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE entries SET status='dnf', dnf_at=?, finished_at=NULL, skupna_ocena=NULL, tier='G' WHERE id=?", (_now_iso(), int(entry_id)))
+    if user_id is None:
+        cur.execute(
+            "UPDATE entries SET status='dnf', dnf_at=?, finished_at=NULL, skupna_ocena=NULL, tier='G' WHERE id=?",
+            (_now_iso(), int(entry_id)),
+        )
+    else:
+        cur.execute(
+            "UPDATE entries SET status='dnf', dnf_at=?, finished_at=NULL, skupna_ocena=NULL, tier='G' WHERE id=? AND user_id=?",
+            (_now_iso(), int(entry_id), int(user_id)),
+        )
     cur.execute("DELETE FROM entry_ratings WHERE entry_id = ?", (int(entry_id),))
     conn.commit()
     conn.close()
 
 
-def mark_in_progress(entry_id: int) -> None:
+def mark_in_progress(entry_id: int, *, user_id: int | None = None) -> None:
+    if user_id is not None and get_entry_for_user(entry_id=int(entry_id), user_id=int(user_id)) is None:
+        raise ValueError("Entry not found")
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE entries SET status='in_progress', finished_at=NULL, dnf_at=NULL, skupna_ocena=NULL, tier=NULL WHERE id=?", (int(entry_id),))
+    if user_id is None:
+        cur.execute(
+            "UPDATE entries SET status='in_progress', finished_at=NULL, dnf_at=NULL, skupna_ocena=NULL, tier=NULL WHERE id=?",
+            (int(entry_id),),
+        )
+    else:
+        cur.execute(
+            "UPDATE entries SET status='in_progress', finished_at=NULL, dnf_at=NULL, skupna_ocena=NULL, tier=NULL WHERE id=? AND user_id=?",
+            (int(entry_id), int(user_id)),
+        )
     cur.execute("DELETE FROM entry_ratings WHERE entry_id = ?", (int(entry_id),))
     conn.commit()
     conn.close()
 
 
-def mark_finished(entry_id: int, tip: str, ratings: Dict[str, float]) -> None:
-    weights = get_rating_weights(tip)
+def mark_finished(entry_id: int, tip: str, ratings: Dict[str, float], *, user_id: int | None = None) -> None:
+    if user_id is not None and get_entry_for_user(entry_id=int(entry_id), user_id=int(user_id)) is None:
+        raise ValueError("Entry not found")
+    weights = get_rating_weights_for_user(tip, user_id=user_id)
     score = calculate_score(ratings, weights)
     tier = calculate_tier(score)
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE entries SET status='finished', finished_at=?, dnf_at=NULL, skupna_ocena=?, tier=? WHERE id=?",
-        (_now_iso(), float(score), tier, int(entry_id)),
-    )
+    if user_id is None:
+        cur.execute(
+            "UPDATE entries SET status='finished', finished_at=?, dnf_at=NULL, skupna_ocena=?, tier=? WHERE id=?",
+            (_now_iso(), float(score), tier, int(entry_id)),
+        )
+    else:
+        cur.execute(
+            "UPDATE entries SET status='finished', finished_at=?, dnf_at=NULL, skupna_ocena=?, tier=? WHERE id=? AND user_id=?",
+            (_now_iso(), float(score), tier, int(entry_id), int(user_id)),
+        )
     cur.execute("DELETE FROM entry_ratings WHERE entry_id = ?", (int(entry_id),))
     for k, v in ratings.items():
         cur.execute("INSERT INTO entry_ratings (entry_id, kriterij, ocena) VALUES (?, ?, ?)", (int(entry_id), k, float(v)))
+    conn.commit()
+    conn.close()
+
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, password_hash, created_at FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user(user_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, created_at FROM users WHERE id = ?", (int(user_id),))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_user(username: str, password_hash: str) -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
+        (username, password_hash, _now_iso()),
+    )
+    uid = int(cur.lastrowid)
+    conn.commit()
+    conn.close()
+    return uid
+
+
+def count_users() -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(1) FROM users")
+    (c,) = cur.fetchone()
+    conn.close()
+    return int(c or 0)
+
+
+def claim_orphaned_data(user_id: int) -> None:
+    """
+    Assign legacy rows (where user_id IS NULL) to the provided user.
+    Intended for first-run migration when enabling auth.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE entries SET user_id = ? WHERE user_id IS NULL", (int(user_id),))
+    except sqlite3.OperationalError:
+        pass
+    conn.commit()
+    conn.close()
+
+
+def seed_rating_settings_for_user(user_id: int) -> None:
+    """
+    Ensure the user has a full copy of rating settings.
+    Copies from the template rows where user_id IS NULL.
+    """
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(1) FROM rating_settings WHERE user_id = ?", (int(user_id),))
+    (count_existing,) = cur.fetchone()
+    if int(count_existing or 0) > 0:
+        conn.close()
+        return
+
+    cur.execute("SELECT tip, kriterij, utez, je_aktiven FROM rating_settings WHERE user_id IS NULL")
+    rows = cur.fetchall()
+    for r in rows:
+        cur.execute(
+            "INSERT INTO rating_settings (user_id, tip, kriterij, utez, je_aktiven) VALUES (?, ?, ?, ?, ?)",
+            (int(user_id), r["tip"], r["kriterij"], float(r["utez"]), int(r["je_aktiven"])),
+        )
     conn.commit()
     conn.close()
 
@@ -410,8 +605,16 @@ def init_db():
     cursor = conn.cursor()
     
 
-    cursor.executescript('''CREATE TABLE IF NOT EXISTS entries (
+    cursor.executescript('''CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     naslov TEXT NOT NULL,
     avtor TEXT NOT NULL,
     tip TEXT NOT NULL CHECK(tip IN ('book', 'audiobook')),
@@ -467,6 +670,7 @@ CREATE TABLE IF NOT EXISTS entry_ratings (
 
 CREATE TABLE IF NOT EXISTS rating_settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     tip TEXT NOT NULL CHECK(tip IN ('book', 'audiobook')),
     kriterij TEXT NOT NULL CHECK(kriterij IN (
         'zgodba',
@@ -495,18 +699,29 @@ CREATE TABLE IF NOT EXISTS entry_checkpoints (
 );
                       ''')
 
+    # Add missing user_id columns on legacy DBs (tables created before auth existed).
+    cursor.execute("PRAGMA table_info(entries)")
+    entry_cols = [r[1] for r in cursor.fetchall()]
+    if "user_id" not in entry_cols:
+        cursor.execute("ALTER TABLE entries ADD COLUMN user_id INTEGER")
+
+    cursor.execute("PRAGMA table_info(rating_settings)")
+    rs_cols = [r[1] for r in cursor.fetchall()]
+    if "user_id" not in rs_cols:
+        cursor.execute("ALTER TABLE rating_settings ADD COLUMN user_id INTEGER")
+
     # Seed default weights (equal weights) once.
     cursor.execute("SELECT COUNT(1) FROM rating_settings")
     (count,) = cursor.fetchone()
     if int(count) == 0:
         for k in BOOK_KRITERIJI:
             cursor.execute(
-                "INSERT INTO rating_settings (tip, kriterij, utez, je_aktiven) VALUES ('book', ?, ?, 1)",
+                "INSERT INTO rating_settings (user_id, tip, kriterij, utez, je_aktiven) VALUES (NULL, 'book', ?, ?, 1)",
                 (k, 1.0),
             )
         for k in AUDIOBOOK_KRITERIJI:
             cursor.execute(
-                "INSERT INTO rating_settings (tip, kriterij, utez, je_aktiven) VALUES ('audiobook', ?, ?, 1)",
+                "INSERT INTO rating_settings (user_id, tip, kriterij, utez, je_aktiven) VALUES (NULL, 'audiobook', ?, ?, 1)",
                 (k, 1.0),
             )
 
@@ -523,6 +738,7 @@ CREATE TABLE IF NOT EXISTS entry_checkpoints (
 
         CREATE TABLE entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             naslov TEXT NOT NULL,
             avtor TEXT NOT NULL,
             tip TEXT NOT NULL CHECK(tip IN ('book', 'audiobook')),
@@ -543,11 +759,11 @@ CREATE TABLE IF NOT EXISTS entry_checkpoints (
         );
 
         INSERT INTO entries (
-            id,naslov,avtor,tip,zvrst,slika_naslovnice,kratko_mnenje,fav_quote,opombe,
+            id,user_id,naslov,avtor,tip,zvrst,slika_naslovnice,kratko_mnenje,fav_quote,opombe,
             status,started_at,finished_at,dnf_at,skupna_ocena,tier
         )
         SELECT
-            id,naslov,avtor,tip,zvrst,slika_naslovnice,kratko_mnenje,fav_quote,opombe,
+            id, NULL, naslov,avtor,tip,zvrst,slika_naslovnice,kratko_mnenje,fav_quote,opombe,
             'finished', NULL, NULL, NULL, skupna_ocena, tier
         FROM entries_old;
 
